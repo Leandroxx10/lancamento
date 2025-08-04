@@ -1,0 +1,32 @@
+{
+  "rules": {
+    "maquinas": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "$maquinaId": {
+        ".validate": "newData.hasChildren(['prefixo', 'molde', 'blank', 'reserva_molde', 'reserva_blank'])"
+      }
+    },
+    "users": {
+      "$uid": {
+        ".read": "$uid === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'admin'",
+        ".write": "$uid === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'admin'",
+        ".validate": "newData.hasChildren(['email', 'role'])"
+      }
+    },
+    "logs": {
+      ".read": "root.child('users').child(auth.uid).child('role').val() === 'admin'",
+      ".write": "auth != null",
+      "$logId": {
+        ".validate": "newData.hasChildren(['uid', 'email', 'timestamp', 'maquinaId', 'campo', 'valorAnterior', 'valorNovo'])"
+      }
+    },
+    "logs_acesso": {
+      ".read": "root.child('users').child(auth.uid).child('role').val() === 'admin'",
+      ".write": "auth != null",
+      "$logId": {
+        ".validate": "newData.hasChildren(['uid', 'email', 'timestamp'])"
+      }
+    }
+  }
+}

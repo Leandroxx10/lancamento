@@ -1,0 +1,406 @@
+
+<!DOCTYPE html>
+
+<html lang="pt-br">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Painel de Produção</title>
+<style>
+    :root {
+      --bg: #f9f9f9;
+      --text: #222;
+      --card: #ffffff;
+      --primary: #16a085;
+      --accent: #2c3e50;
+      --alert: #ffdddd;
+      --alert-border: #cc0000;
+      --alert-text: #990000;
+    }
+    body {
+      margin: 0;
+      padding: 30px;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .top-bar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 25px;
+    }
+    .top-bar input {
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      width: 200px;
+    }
+    .top-bar button {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: 0.3s ease;
+    }
+    .top-bar button:hover {
+      opacity: 0.85;
+    }
+    .maquina {
+      background: var(--card);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 15px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    }
+    .maquina.alerta {
+      border: 2px solid var(--alert-border);
+      background-color: var(--alert);
+      color: var(--alert-text);
+    }
+    .maquina h3 {
+      margin-top: 0;
+      font-size: 1.1rem;
+    }
+    .linha {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 12px;
+    }
+    .controles button {
+      padding: 6px 12px;
+      margin: 0 5px;
+      border: none;
+      background: var(--accent);
+      color: white;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    #totais {
+      font-weight: bold;
+      margin-bottom: 20px;
+      font-size: 1.1rem;
+    }
+    #notificacao {
+      background: #e0ffe0;
+      color: #006600;
+      padding: 10px;
+      margin-bottom: 20px;
+      border: 1px solid #00cc00;
+      border-radius: 8px;
+      display: none;
+    }
+    h1 {
+      margin-top: 0;
+      font-size: 1.8rem;
+    }
+  
+.toast {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  background: #16a085;
+  color: white;
+  padding: 14px 18px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  animation: fadein 0.4s, fadeout 0.4s 2.6s;
+  z-index: 1000;
+}
+@keyframes fadein {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeout {
+  from { opacity: 1; }
+  to { opacity: 0; transform: translateY(20px); }
+}
+
+
+@media (max-width: 768px) {
+  .top-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .top-bar input, .top-bar button {
+    width: 100%;
+  }
+
+  .linha {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .controles {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .maquina {
+    font-size: 0.95rem;
+  }
+}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script><script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script></head>
+<body>
+<h1>Quantidade de peças</h1>
+<div style="width: 100%; overflow-x: auto;">
+<canvas id="graficoProducao" style="width: 3000px; height: 400px; display:block;" width="3000"></canvas>
+</div>
+<div style="overflow-x: auto; margin-bottom: 30px;"></div>
+<div class="top-bar">
+<input id="filtro" oninput="filtrar()" placeholder="Filtrar máquina (ex: A1)" type="text"/>
+<button onclick="alternarCriticos()">🔁 Ver Críticos</button>
+<button onclick="gerarPDF('diario')">Gerar PDF Diário</button>
+</div>
+<div id="notificacao">Atualizado com sucesso.</div>
+<div id="totais"></div>
+<div id="painel"></div>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyBPgWEv0f8fK25teN6K2S3VGO63s_YRcOA",
+      authDomain: "controleproducao2025-42272.firebaseapp.com",
+      databaseURL: "https://controleproducao2025-42272-default-rtdb.firebaseio.com",
+      projectId: "controleproducao2025-42272",
+      storageBucket: "controleproducao2025-42272.appspot.com",
+      messagingSenderId: "524681663678",
+      appId: "1:524681663678:web:eb4184a410f1e1893bbaef",
+      measurementId: "G-FRB64EYZKB"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    let dadosMaquinas = {};
+    const estoqueMinimo = 3;
+
+    function criarPainel(maquinas) {
+      dadosMaquinas = maquinas;
+      const filtro = document.getElementById("filtro").value.toLowerCase();
+      const painel = document.getElementById("painel");
+      painel.innerHTML = "";
+      let totalMolde = 0;
+      let totalBlank = 0;
+
+      let maquinasFiltradas = Object.entries(maquinas);
+
+      if (mostrarCriticos) {
+        maquinasFiltradas = maquinasFiltradas
+          .filter(([_, m]) => m.molde <= estoqueMinimo || m.blank <= estoqueMinimo)
+          .sort((a, b) => {
+            const estA = Math.min(a[1].molde, a[1].blank);
+            const estB = Math.min(b[1].molde, b[1].blank);
+            return estA - estB;
+          });
+      }
+
+      for (let [id, m] of maquinasFiltradas) {
+        if (filtro && !id.toLowerCase().includes(filtro)) continue;
+        totalMolde += m.molde;
+        totalBlank += m.blank;
+
+        const alerta = (m.molde <= estoqueMinimo || m.blank <= estoqueMinimo) ? 'alerta' : '';
+
+        painel.innerHTML += `
+          <div class="maquina ${alerta}">
+            <h3>Máquina ${id} | Prefixo: ${m.prefixo}</h3>
+            <div class="linha">
+              <span>Molde:</span>
+              <div class="controles">
+                <button onclick="alterar('${id}', 'molde', -1)">-</button>
+                <span id="${id}-molde">${m.molde}</span>
+                <button onclick="alterar('${id}', 'molde', 1)">+</button>
+              </div>
+            </div>
+            <div class="linha">
+              <span>Blank:</span>
+              <div class="controles">
+                <button onclick="alterar('${id}', 'blank', -1)">-</button>
+                <span id="${id}-blank">${m.blank}</span>
+                <button onclick="alterar('${id}', 'blank', 1)">+</button>
+              </div>
+            </div>
+            ${(alerta ? '<div><strong>⚠ Estoque em nível crítico (≤ 3 peças)</strong></div>' : '')}
+          </div>
+        `;
+      }
+
+      document.getElementById("totais").innerText =
+        `Total Moldes: ${totalMolde} | Total Blanks: ${totalBlank}`;
+    }
+
+    function alterar(maquinaId, tipo, delta) {
+      const ref = db.ref(`maquinas/${maquinaId}/${tipo}`);
+      ref.transaction(current => (current || 0) + delta);
+    }
+
+    function filtrar() {
+      criarPainel(dadosMaquinas);
+    }
+
+    function mostrarNotificacao(msg, cor = "#16a085") {
+  const toast = document.createElement("div");
+  toast.className = "toast";
+  toast.style.backgroundColor = cor;
+  toast.innerText = msg;
+  document.body.appendChild(toast);
+  setTimeout(() => { toast.remove(); }, 3000);
+}
+
+    db.ref("maquinas").on("value", snapshot => {
+      const dados = snapshot.val();
+      if (dados) {
+        criarPainel(dados);
+        mostrarNotificacao("Atualizado com sucesso.");
+      }
+    });
+
+    
+let mostrarCriticos = false;
+
+function alternarCriticos() {
+  mostrarCriticos = !mostrarCriticos;
+  const btn = document.querySelector(".top-bar button:nth-child(2)");
+  btn.innerText = mostrarCriticos ? "✅ Exibindo Críticos" : "🔁 Ver Críticos";
+  criarPainel(dadosMaquinas);
+}
+
+
+async function gerarPDF(tipo) {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+
+      const dataAtual = new Date();
+      const dataStr = dataAtual.toLocaleDateString('pt-BR');
+      const horaStr = dataAtual.toLocaleTimeString('pt-BR');
+      const dataISO = dataAtual.toISOString().split("T")[0];
+
+      doc.setFontSize(16);
+      doc.text(`Relatório de Produção - ${tipo.toUpperCase()}`, 105, 15, { align: "center" });
+      doc.setFontSize(10);
+      doc.text(`Data: ${dataStr} | Hora: ${horaStr}`, 105, 22, { align: "center" });
+
+      const body = Object.keys(dadosMaquinas).map(id => {
+        const m = dadosMaquinas[id];
+        return [id, m.prefixo, m.molde || 0, m.blank || 0];
+      });
+
+      doc.autoTable({
+        startY: 30,
+        head: [['Máquina', 'Prefixo', 'Molde', 'Blank']],
+        body: body,
+        styles: { fontSize: 10 },
+        headStyles: { fillColor: [22, 160, 133] },
+        theme: 'grid',
+      });
+
+      const nomeArquivo = `relatorio_${tipo}_${dataISO}.pdf`;
+      doc.save(nomeArquivo);
+    }
+  </script>
+<script>
+firebase.database().ref("maquinas").on("value", snapshot => {
+  const dados = snapshot.val();
+  if (dados) {
+    criarPainel(dados);
+  }
+});
+</script><!--
+Para enviar o PDF gerado por e-mail, você pode:
+- Usar uma API externa como EmailJS ou Firebase Cloud Functions + Nodemailer.
+- Adicionar um campo para digitar o e-mail e um botão "Enviar por E-mail".
+- Enviar o conteúdo do PDF como blob para backend ou serviço externo.
+-->
+<script>
+Chart.register(ChartDataLabels);
+
+function atualizarGrafico(dados) {
+  const ctx = document.getElementById("graficoProducao").getContext("2d");
+  const maquinas = Object.keys(dados);
+  const moldes = maquinas.map(id => dados[id].molde);
+  const blanks = maquinas.map(id => dados[id].blank);
+
+  if (window.__graficoProducao) {
+    window.__graficoProducao.destroy();
+  }
+
+  window.__graficoProducao = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: maquinas,
+      datasets: [
+        {
+          label: "Molde",
+          data: moldes,
+          backgroundColor: "rgba(22,160,133,0.7)",
+          barPercentage: 0.6,
+          categoryPercentage: 0.6
+        },
+        {
+          label: "Blank",
+          data: blanks,
+          backgroundColor: "rgba(44,62,80,0.7)",
+          barPercentage: 0.6,
+          categoryPercentage: 0.6
+        }
+      ]
+    },
+    options: {
+      responsive: false,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: "left" },
+        title: {
+          display: true,
+          text: "Estoque Atual por Máquina"
+        },
+        datalabels: {
+          color: '#000',
+          anchor: 'end',
+          align: 'top',
+          font: {
+            weight: 'bold'
+          },
+          formatter: function(value) {
+            return value;
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: {
+            autoSkip: false,
+            maxRotation: 45,
+            minRotation: 30
+          }
+        },
+        y: {
+          beginAtZero: true
+        }
+      }
+    },
+    plugins: [ChartDataLabels]
+  });
+}
+
+firebase.database().ref("maquinas").on("value", snapshot => {
+  const dados = snapshot.val();
+  if (dados) {
+    criarPainel(dados);
+    atualizarGrafico(dados);
+  }
+});
+</script></body>
+</html>
