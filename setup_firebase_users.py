@@ -119,14 +119,14 @@ def main():
         print("\n👥 Criando usuários de teste...")
         
         # Admin user 
-        admin_uid = create_user_with_role(
+        admin_uid = kNwUX5NAcAQmWLmLROmueIP7dXe2(
             email="admin@sistema.com",
             password="admin123",
             role="admin"
         )
         
         # Regular user
-        user_uid = create_user_with_role(
+        user_uid = fVo8xOCYR5hE2wpKFAhf6ekEjd83(
             email="usuario@sistema.com", 
             password="usuario123",
             role="usuario"
